@@ -4,18 +4,25 @@ import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -29,6 +36,7 @@ import androidx.core.app.ActivityCompat;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.UUID;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -64,6 +72,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private BluetoothLeService mBluetoothLeService;
     private BluetoothGattCharacteristic mNotifyCharacteristic;
 
+    private boolean gattServiceDiscovered = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -76,11 +86,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         buttonScanDevices.setOnClickListener(this);
         buttonReadTemperature.setOnClickListener(this);
 
+        Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
+        bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
+
         initComponents();
     }
 
     /**
-     * Initialize components
+     * Initialize components.
      */
     private void initComponents() {
         checkBleAvailability();
@@ -131,7 +144,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * Request Bluetooth permission
+     * Request Bluetooth permission.
      */
     private void requestBluetoothEnable() {
         startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQUEST_ENABLE_BT);
@@ -163,8 +176,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         // If request is cancelled, the result arrays are empty.
-        if((requestCode == REQUEST_ENABLE_LOCATION) &&
-            (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
+        if ((requestCode == REQUEST_ENABLE_LOCATION) &&
+                (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
             requestLocationPermission();
         }
     }
@@ -178,6 +191,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (!mBluetoothAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }
+
+        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+
+        if (mBluetoothLeService != null) {
+            final boolean result = mBluetoothLeService.connect(mDeviceAddress);
+
+            Log.d(TAG, "Connect request result = " + result);
         }
     }
 
@@ -202,6 +223,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         mDevice = null;
+
+        unregisterReceiver(mGattUpdateReceiver);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        if (mBluetoothLeScanner != null) {
+            scanLeDevice(false);
+        }
+
+        unbindService(mServiceConnection);
+
+        mDevice = null;
+
+        mBluetoothLeService = null;
     }
 
     /**
@@ -246,7 +284,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * Search for BLE devices
+     * Search for BLE devices.
+     *
      * @param enable
      */
     private void scanLeDevice(final boolean enable) {
@@ -269,6 +308,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
+    /**
+     * Defines ScanCallback.
+     */
     private final ScanCallback mLeScanCallback = new android.bluetooth.le.ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
@@ -294,18 +336,107 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     };
 
+    /**
+     * Make update of gatt intent filter.
+     *
+     * @return IntentFilter
+     */
+    private static IntentFilter makeGattUpdateIntentFilter() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
+        intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
+
+        return intentFilter;
+    }
+
+    /**
+     * Defines service connection.
+     */
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+            mBluetoothLeService = ((BluetoothLeService.LocalBinder) iBinder).getService();
+
+            if (!mBluetoothLeService.initialize()) {
+                Log.e(TAG, "Unable to initialize Bluetooth");
+                finish();
+            }
+
+            // Automatically connects to the device upon successful start-up initialization.
+            tryingConnect();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBluetoothLeService = null;
+        }
+    };
+
+    // Handles various events fired by the Service.
+    // ACTION_GATT_CONNECTED: connected to a GATT server.
+    // ACTION_GATT_DISCONNECTED: disconnected from a GATT server.
+    // ACTION_GATT_SERVICES_DISCOVERED: discovered GATT services.
+    // ACTION_DATA_AVAILABLE: received data from the device.  This can be a result of read
+    //                        or notification operations.
+    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+
+            if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+                Log.i(TAG, "ACTION_GATT_CONNECTED");
+            } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
+                Log.i(TAG, "ACTION_GATT_DISCONNECTED");
+
+                tryingConnect();
+            } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
+                Log.w(TAG, "ACTION_GATT_SERVICES_DISCOVERED");
+                gattServiceDiscovered = true;
+                listenTemperature();
+            } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
+                String jsonData = intent.getStringExtra(BluetoothLeService.EXTRA_DATA);
+
+                txtTemperature.setText(jsonData);
+            }
+        }
+    };
+
+    /**
+     * Temperature Characteristic indication.
+     */
+    public void listenTemperature() {
+        BluetoothGatt mBluetoothGatt = mBluetoothLeService.getBluetoothGatt();
+
+        if (mBluetoothGatt == null) return;
+
+        BluetoothGattCharacteristic bchar = mBluetoothGatt.getService(UUID.fromString(GattAttributes.SERVICE_HEALTH_THERMOMETER))
+                .getCharacteristic(UUID.fromString(GattAttributes.CHARACTERISTIC_TEMPERATURE_MEASUREMENT));
+
+        mBluetoothLeService.setCharacteristicNotification(bchar, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE, true);
+    }
+
+    /**
+     * Connect to device.
+     *
+     * @return boolean
+     */
+    private boolean tryingConnect() {
+        Log.i(TAG, "tryingConnect()");
+        if (mBluetoothLeService != null) {
+            return mBluetoothLeService.connect(mDeviceAddress);
+        }
+
+        return false;
+    }
+
     @Override
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.button_scan_devices:
                 if (mBluetoothLeScanner != null && !mScanning) {
                     scanLeDevice(true);
-                }
-
-                break;
-            case R.id.button_read_temp:
-                if (mDevice != null) {
-                    txtTemperature.setText(mDevice.getAddress());
                 }
 
                 break;

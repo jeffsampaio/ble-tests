@@ -12,5 +12,4 @@
 
     <!-- Buttons -->
     <string name="button_scan_devices">Scan Devices</string>
-    <string name="button_read_temperature">Read Temperature</string>
 </resources>

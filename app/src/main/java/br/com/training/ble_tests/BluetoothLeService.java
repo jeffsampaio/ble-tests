@@ -118,7 +118,11 @@ public class BluetoothLeService extends Service {
         final Intent intent = new Intent(action);
         Log.i(LOG, "broadcastUpdate()");
         if (characteristic.getUuid().equals(UUID.fromString(GattAttributes.CHARACTERISTIC_TEMPERATURE_MEASUREMENT))) {
-            intent.putExtra(EXTRA_DATA, characteristic.toString());
+            try {
+                intent.putExtra(EXTRA_DATA, GattHTParser.parse(characteristic).toString());
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
         } else {
             Log.w(LOG, "broadcastUpdate() - OTHER");
             final byte[] data = characteristic.getValue();
@@ -301,5 +305,9 @@ public class BluetoothLeService extends Service {
         if (mBluetoothGatt == null) return null;
 
         return mBluetoothGatt.getServices();
+    }
+
+    public BluetoothGatt getBluetoothGatt() {
+        return mBluetoothGatt;
     }
 }
