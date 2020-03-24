@@ -2,4 +2,15 @@
     <string name="app_name">BLE Tests</string>
     <string name="ble_not_supported">BLE is not supported on this device.</string>
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
+    <string name="txt_device">Device:</string>
+    <string name="txt_device_address">Device address:</string>
+    <string name="txt_temperature">Temperature: </string>
+
+    <!-- Scanning devices - Toast -->
+    <string name="scanning_devices">Scanning devices</string>
+    <string name="stop_scanning_devices">Stop scanning devices</string>
+
+    <!-- Buttons -->
+    <string name="button_scan_devices">Scan Devices</string>
+    <string name="button_read_temperature">Read Temperature</string>
 </resources>
