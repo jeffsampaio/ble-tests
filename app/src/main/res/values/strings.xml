@@ -8,6 +8,7 @@
     <!-- Scanning devices - Toast -->
     <string name="scanning_devices">Scanning devices</string>
     <string name="stop_scanning_devices">Stop scanning devices</string>
+    <string name="disabled_bluetooth">Bluetooth is not turned on. Please activate it.</string>
 
     <!-- Buttons -->
     <string name="button_scan_devices">Scan Devices</string>
