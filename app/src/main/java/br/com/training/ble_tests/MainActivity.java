@@ -90,7 +90,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      */
     private void initComponents() {
         checkBleAvailability();
-        checkPermissions();
         initBluetooth();
     }
 
@@ -104,45 +103,22 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    /**
-     * Checks if you have permission to use.
-     * Required bluetooth ble and location.
-     */
-    public void checkPermissions() {
-        if (BluetoothAdapter.getDefaultAdapter() != null &&
-                !BluetoothAdapter.getDefaultAdapter().isEnabled()) {
-            requestBluetoothEnable();
-        } else if (!hasLocationPermissions()) {
-            requestLocationPermission();
-        }
-    }
+//    /**
+//     * Checks if you have permission to use.
+//     * Required bluetooth ble and location.
+//     */
+//    public void checkPermissions() {
+//        if (BluetoothAdapter.getDefaultAdapter() != null &&
+//                !BluetoothAdapter.getDefaultAdapter().isEnabled()) {
+//            requestBluetoothEnable();
+//        }
+//    }
 
     /**
      * Request Bluetooth permission.
      */
     private void requestBluetoothEnable() {
         startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQUEST_ENABLE_BT);
-    }
-
-    /**
-     * Checks whether the location permission was given.
-     *
-     * @return boolean
-     */
-    public boolean hasLocationPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
-                    PackageManager.PERMISSION_GRANTED;
-        }
-        return true;
-    }
-
-    /**
-     * Request Location permission.
-     */
-    protected void requestLocationPermission() {
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_ENABLE_LOCATION);
     }
 
     /**
@@ -157,6 +133,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onResume() {
         super.onResume();
+
+        // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
+        // fire an intent to display a dialog asking the user to grant permission to enable it.
+        if (!mBluetoothAdapter.isEnabled()) {
+            requestBluetoothEnable();
+        }
 
         registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
@@ -196,27 +178,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        // If request is cancelled, the result arrays are empty.
-        if ((requestCode == REQUEST_ENABLE_LOCATION) &&
-                (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
-            requestLocationPermission();
-        }
-    }
-
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        // User choose not to enable Bluetooth.
-        if (requestCode == REQUEST_ENABLE_BT) {
-            if (resultCode == Activity.RESULT_OK) {
-                requestBluetoothEnable();
-            } else {
-                requestLocationPermission();
-            }
+        // User chose not to enable Bluetooth.
+        if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
+            finish();
+            return;
         }
-
         super.onActivityResult(requestCode, resultCode, data);
     }
 
