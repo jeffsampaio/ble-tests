@@ -132,6 +132,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
         if (mBluetoothLeService != null) {
+            if (!mBluetoothLeService.connect(mDeviceAddress)) {
+                mBluetoothLeService.disconnect();
+                mBluetoothLeService.close();
+            }
             final boolean result = mBluetoothLeService.connect(mDeviceAddress);
 
             Log.d(TAG, "Connect request result = " + result);
@@ -142,10 +146,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onPause() {
         super.onPause();
 
-        if (mBluetoothLeScanner != null) {
-            scanLeDevice(false);
-        }
-
         mDevice = null;
 
         unregisterReceiver(mGattUpdateReceiver);
@@ -154,10 +154,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
-        if (mBluetoothLeScanner != null) {
-            scanLeDevice(false);
-        }
 
         unbindService(mServiceConnection);
 
@@ -173,6 +169,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             finish();
             return;
         }
+
+        initBluetooth();
+
         super.onActivityResult(requestCode, resultCode, data);
     }
 
@@ -219,27 +218,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     /**
      * Search for BLE devices.
-     *
-     * @param enable
      */
-    private void scanLeDevice(final boolean enable) {
-        if (enable) {
-            // Stops scanning after a pre-defined scan period.
-            mHandler.postDelayed(() -> {
-                mScanning = false;
-                mBluetoothLeScanner.stopScan(mLeScanCallback);
-
-                Toast.makeText(this, R.string.stop_scanning_devices, Toast.LENGTH_SHORT).show();
-            }, SCAN_PERIOD);
-
-            mScanning = true;
-            mBluetoothLeScanner.startScan(mLeScanCallback);
-
-            Toast.makeText(this, R.string.scanning_devices, Toast.LENGTH_SHORT).show();
-        } else {
+    private void scanLeDevice() {
+        // Stops scanning after a pre-defined scan period.
+        mHandler.postDelayed(() -> {
             mScanning = false;
-            mBluetoothLeScanner.stopScan(mLeScanCallback);
-        }
+            if (mBluetoothAdapter.isEnabled()) mBluetoothLeScanner.stopScan(mLeScanCallback);
+
+            Toast.makeText(this, R.string.stop_scanning_devices, Toast.LENGTH_SHORT).show();
+        }, SCAN_PERIOD);
+
+        mScanning = true;
+        mBluetoothLeScanner.startScan(mLeScanCallback);
+
+        Toast.makeText(this, R.string.scanning_devices, Toast.LENGTH_SHORT).show();
     }
 
     /**
@@ -369,8 +361,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.button_scan_devices:
-                if (mBluetoothLeScanner != null && !mScanning) {
-                    scanLeDevice(true);
+                if (mBluetoothAdapter.isEnabled() && mBluetoothLeScanner != null) {
+                    if (!mScanning) scanLeDevice();
+                } else {
+                    Toast.makeText(this, R.string.disabled_bluetooth, Toast.LENGTH_LONG).show();
                 }
 
                 break;
