@@ -103,17 +103,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-//    /**
-//     * Checks if you have permission to use.
-//     * Required bluetooth ble and location.
-//     */
-//    public void checkPermissions() {
-//        if (BluetoothAdapter.getDefaultAdapter() != null &&
-//                !BluetoothAdapter.getDefaultAdapter().isEnabled()) {
-//            requestBluetoothEnable();
-//        }
-//    }
-
     /**
      * Request Bluetooth permission.
      */
