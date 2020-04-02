@@ -23,7 +23,7 @@ public class GattHTParser {
      * Parse for the PHILIPS device, according to GATT.
      * Supported Models: DL8740.
      *
-     * {@link <https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.characteristic.temperature_measurement.xml>}
+     * {@link <https://www.bluetooth.com/wp-content/uploads/Sitecore-Media-Library/Gatt/Xml/Characteristics/org.bluetooth.characteristic.temperature_measurement.xml>}
      *
      * @param characteristic BluetoothGattCharacteristic
      * @return JSONObject

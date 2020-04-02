@@ -59,9 +59,6 @@ public class BluetoothLeService extends Service {
     public final static String ACTION_DATA_AVAILABLE = "br.com.training.ble_tests.ACTION_DATA_AVAILABLE";
     public final static String EXTRA_DATA = "br.com.training.ble_tests.EXTRA_DATA";
 
-    public final static UUID UUID_TEMPERATURE_MEASUREMENT =
-            UUID.fromString(GattAttributes.CHARACTERISTIC_TEMPERATURE_MEASUREMENT);
-
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
         sendBroadcast(intent);

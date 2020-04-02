@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
@@ -52,9 +51,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @BindView(R.id.txt_temperature)
     TextView txtTemperature;
 
-    @BindView(R.id.button_read_temp)
-    Button buttonReadTemperature;
-
     private static String TAG = "MainActivity";
 
     private static final int REQUEST_ENABLE_BT = 1;
@@ -70,8 +66,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Handler mHandler;
 
     private BluetoothLeService mBluetoothLeService;
-    private BluetoothGattCharacteristic mNotifyCharacteristic;
-
     private boolean gattServiceDiscovered = false;
 
     @Override
@@ -84,7 +78,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mHandler = new Handler();
 
         buttonScanDevices.setOnClickListener(this);
-        buttonReadTemperature.setOnClickListener(this);
 
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
         bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
@@ -112,31 +105,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * Initialize Bluetooth.
-     */
-    private void initBluetooth() {
-        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        mBluetoothAdapter = bluetoothManager.getAdapter();
-        mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
-    }
-
-    /**
-     * Check if Bluetooth is supported on the device.
-     */
-    private void checkBluetoothAvailability() {
-        if (mBluetoothAdapter == null) {
-            Toast.makeText(this, R.string.error_bluetooth_not_supported, Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-    }
-
-    /**
      * Checks if you have permission to use.
      * Required bluetooth ble and location.
      */
     public void checkPermissions() {
-        if (BluetoothAdapter.getDefaultAdapter() != null && !BluetoothAdapter.getDefaultAdapter().isEnabled()) {
+        if (BluetoothAdapter.getDefaultAdapter() != null &&
+                !BluetoothAdapter.getDefaultAdapter().isEnabled()) {
             requestBluetoothEnable();
         } else if (!hasLocationPermissions()) {
             requestLocationPermission();
@@ -171,27 +145,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_ENABLE_LOCATION);
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        // If request is cancelled, the result arrays are empty.
-        if ((requestCode == REQUEST_ENABLE_LOCATION) &&
-                (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
-            requestLocationPermission();
-        }
+    /**
+     * Initialize Bluetooth.
+     */
+    private void initBluetooth() {
+        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = bluetoothManager.getAdapter();
+        mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-
-        // Ensures Bluetooth is enabled on the device. If Bluetooth is not currently enabled,
-        // fire an intent to display a dialog asking the user to grant permission to enable it.
-        if (!mBluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        }
 
         registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
 
@@ -200,18 +165,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             Log.d(TAG, "Connect request result = " + result);
         }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        // User choose not to enable Bluetooth.
-        if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_OK) {
-            requestBluetoothEnable();
-        } else {
-            requestLocationPermission();
-        }
-
-        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -240,6 +193,31 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mDevice = null;
 
         mBluetoothLeService = null;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        // If request is cancelled, the result arrays are empty.
+        if ((requestCode == REQUEST_ENABLE_LOCATION) &&
+                (grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
+            requestLocationPermission();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        // User choose not to enable Bluetooth.
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode == Activity.RESULT_OK) {
+                requestBluetoothEnable();
+            } else {
+                requestLocationPermission();
+            }
+        }
+
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     /**
